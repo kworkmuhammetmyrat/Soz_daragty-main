@@ -1,9 +1,10 @@
 import { useGameState } from '../hooks/useGameState';
 import { useCountdown } from '../hooks/useCountdown';
-import { Trophy, Clock } from 'lucide-react';
+import { Trophy, Clock, PauseCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { update } from '../lib/localDb';
 import { useEffect, useState } from 'react';
+
 
 interface ContestantDisplayProps {
   sessionId: string;
@@ -140,16 +141,23 @@ export const ContestantDisplay = ({ sessionId }: ContestantDisplayProps) => {
   return (
     <div className="min-h-dvh bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col p-4 md:p-6">
 
-      {gameState?.timer_active && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 md:top-8 md:left-auto md:right-8 md:translate-x-0 z-40">
-          <div className="flex items-center gap-4 px-8 py-4 rounded-3xl bg-blue-600 border-4 border-blue-400 shadow-2xl">
-            <Clock className="w-10 h-10 text-white" />
-            <span className="text-5xl md:text-6xl font-black text-white">
-              {timeRemaining}
-            </span>
-          </div>
-        </div>
-      )}
+      {gameState?.timer_started_at && (
+  <div className="fixed top-4 left-1/2 -translate-x-1/2 md:top-8 md:left-auto md:right-8 md:translate-x-0 z-40">
+    <div className="flex items-center gap-4 px-8 py-4 rounded-3xl bg-blue-600 border-4 border-blue-400 shadow-2xl">
+      <Clock className="w-10 h-10 text-white" />
+      <span className="text-5xl md:text-6xl font-black text-white flex items-center gap-3">
+        {gameState?.timer_active ? (
+          timeRemaining
+        ) : (
+          <>
+            <PauseCircle className="w-12 h-12 text-yellow-400" />
+            {timeRemaining}
+          </>
+        )}
+      </span>
+    </div>
+  </div>
+)}
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 items-start mt-20 md:mt-0">
 
@@ -183,11 +191,13 @@ export const ContestantDisplay = ({ sessionId }: ContestantDisplayProps) => {
           </div>
 
           {failedWord && !showFailedOverlay && (
-            <div className="mt-6 p-4 bg-red-900/50 border-4 border-red-500 rounded-2xl text-center animate-pulse">
-              <p className="text-red-200 text-sm mb-1">Ýalňyş:</p>
-              <p className="text-red-100 text-3xl font-black font-mono tracking-wider">{failedWord}</p>
-            </div>
-          )}
+    <div className="mt-8 p-6 bg-red-900/70 backdrop-blur rounded-2xl border-4 border-red-500 text-center shadow-2xl animate-pulse">
+      <p className="text-red-200 text-lg mb-2 font-semibold">Bilmediler!</p>
+      <p className="text-red-100 text-4xl md:text-5xl font-black font-mono tracking-widest">
+        {failedWord}
+      </p>
+    </div>
+  )}
         </div>
 
         <div className="flex flex-col items-center gap-8 lg:gap-12">

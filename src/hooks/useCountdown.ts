@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-const TIMER_DURATION = 30;
+const TIMER_DURATION = 30; // 30 saniye
 
 export const useCountdown = (
   active: boolean,
@@ -15,23 +15,29 @@ export const useCountdown = (
       return;
     }
 
-    const calculateRemaining = () => {
+    // Başlangıçta kalan süreyi hesapla ve sabitle
+    const initialElapsed = (Date.now() - new Date(startedAt).getTime()) / 1000;
+    const initialRemaining = Math.max(0, TIMER_DURATION - initialElapsed);
+    setTimeRemaining(Math.ceil(initialRemaining));
+
+    if (!active) {
+      // Pause'daysa interval kurma, kalan süre donuk kalsın
+      return;
+    }
+
+    const interval = setInterval(() => {
       const elapsed = (Date.now() - new Date(startedAt).getTime()) / 1000;
       const remaining = TIMER_DURATION - elapsed;
 
       if (remaining <= 0) {
-        if (active) {
-          onTimeout();
-        }
         setTimeRemaining(0);
+        onTimeout();
+        clearInterval(interval);
       } else {
-        setTimeRemaining(Math.max(0, Math.ceil(remaining)));
+        setTimeRemaining(Math.ceil(remaining));
       }
-    };
+    }, 250);
 
-    calculateRemaining();
-
-    const interval = setInterval(calculateRemaining, 250);
     return () => clearInterval(interval);
   }, [active, startedAt, onTimeout]);
 

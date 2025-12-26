@@ -33,45 +33,47 @@ export const AdminDashboard = ({ sessionId }: AdminDashboardProps) => {
 
   const isTimerPaused = gameState?.timer_active === 0 && gameState?.timer_started_at !== null;
 
-  const handleTimeout = async () => {
-    if (!gameState || !currentGroupId) return;
+const handleTimeout = async () => {
+  if (!gameState || !currentGroupId) return;
 
-    const newAttempts = (gameState.attempts_used || 0) + 1;
-    const currentLength = gameState?.current_word?.length || 4;
-    const timeoutGuess = {
-      word: ''.padEnd(currentLength, ' '),
-      results: Array(currentLength).fill({ letter: '', status: 'timeout' })
-    };
+  const newAttempts = (gameState.attempts_used || 0) + 1;
+  const currentLength = gameState?.current_word?.length || 4;
+  const timeoutGuess = {
+    word: ''.padEnd(currentLength, ' '),
+    results: Array(currentLength).fill({ letter: '', status: 'timeout' })
+  };
 
-    const newGuesses = [...(gameState.guesses || []), timeoutGuess];
+  const newGuesses = [...(gameState.guesses || []), timeoutGuess];
 
+  await update(
+    'game_state',
+    {
+      timer_active: 0,
+      timer_started_at: null,
+      attempts_used: newAttempts,
+      guesses: JSON.stringify(newGuesses),
+    },
+    'session_id = ? AND group_id = ?',
+    [sessionId, currentGroupId]
+  );
+
+  // YANLIŞ SESİ ÇAL
+  playWrongDelayed();
+
+  if (newAttempts >= 6) {
     await update(
       'game_state',
-      {
-        timer_active: 0,
-        timer_started_at: null,
-        attempts_used: newAttempts,
-        guesses: JSON.stringify(newGuesses),
-      },
+      { current_word: null, current_word_id: null, guesses: '[]' },
       'session_id = ? AND group_id = ?',
       [sessionId, currentGroupId]
     );
+  } else {
+    setTimeout(startTimer, 800); // Yeni deneme için timer'ı 30sn'den başlat
+  }
 
-    if (newAttempts >= 6) {
-      await update(
-        'game_state',
-        { current_word: null, current_word_id: null, guesses: '[]' },
-        'session_id = ? AND group_id = ?',
-        [sessionId, currentGroupId]
-      );
-    } else {
-      setTimeout(startTimer, 800);
-    }
-
-    soundManager.stopTension();
-    soundManager.stopTicking();
-    playWrongDelayed();
-  };
+  soundManager.stopTension();
+  soundManager.stopTicking();
+};
 
   const timeRemaining = useCountdown(
     gameState?.timer_active || false,
@@ -98,26 +100,22 @@ export const AdminDashboard = ({ sessionId }: AdminDashboardProps) => {
     inputRef.current?.focus();
   }, [gameState?.current_word]);
 
-  useEffect(() => {
-    if (gameSession) {
-      soundManager.startTension(1.0);
-      soundManager.setTensionVolume(gameState?.timer_active ? 1.0 : 0.5);
-    }
+useEffect(() => {
+  if (gameSession) {
+    soundManager.startTension(1.0);
+  }
 
-    if (gameState?.timer_active) {
-      soundManager.startTicking();
-      soundManager.setTensionVolume(1.0);
-    } else {
-      soundManager.stopTicking();
-      if (gameSession) {
-        soundManager.setTensionVolume(0.5);
-      }
-    }
+  if (gameState?.timer_active) {
+    soundManager.startTicking(); // Bu otomatik tension'ı durdurur
+  } else {
+    soundManager.stopTicking();
+    soundManager.startTension(0.5); // Pause'da hafif tension çalsın
+  }
 
-    return () => {
-      soundManager.stopAll();
-    };
-  }, [gameState?.timer_active, gameSession]);
+  return () => {
+    soundManager.stopAll();
+  };
+}, [gameState?.timer_active, gameSession]);
 
   const playCorrectDelayed = () => setTimeout(() => {
     soundManager.playCorrect();
@@ -414,15 +412,22 @@ export const AdminDashboard = ({ sessionId }: AdminDashboardProps) => {
               <p className="text-slate-500 text-xs mt-2">Spoiler üçin ýaşyryn</p>
             </div>
             <div className="text-center mb-3">
-              <p className="text-lg text-slate-300">
-                Synanyşyk: {gameState?.attempts_used || 0} / 6
-                {gameState?.timer_started_at && (
-                  <span className="ml-4">
-                    | Zaman: {gameState?.timer_active ? timeRemaining : `⏸ ${timeRemaining}`}
-                  </span>
-                )}
-              </p>
-            </div>
+  <p className="text-lg text-slate-300">
+    Synanyşyk: {gameState?.attempts_used || 0} / 6
+    {gameState?.timer_started_at && (
+      <span className="ml-4 font-bold text-xl">
+        | Zaman: {gameState?.timer_active ? (
+          <span className="text-white">{timeRemaining}</span>
+        ) : (
+          <span className="text-yellow-400 flex items-center gap-2">
+            <PauseCircle className="w-5 h-5" />
+            {timeRemaining}
+          </span>
+        )}
+      </span>
+    )}
+  </p>
+</div>
             <div className="flex gap-2">
               {gameState?.timer_active ? (
                 <button
@@ -549,6 +554,16 @@ export const AdminDashboard = ({ sessionId }: AdminDashboardProps) => {
 
         <div className="bg-slate-800/60 backdrop-blur rounded-2xl p-4 border border-slate-700">
           <h2 className="text-2xl font-bold text-white mb-4 text-center">Denenen Sözler</h2>
+          {gameState?.attempts_used >= 6 &&
+ !guesses[guesses.length - 1]?.results.every((r: any) => r.status === 'correct') &&
+ gameState?.current_word && (
+  <div className="mt-6 p-5 bg-red-900/60 border-4 border-red-500 rounded-2xl text-center shadow-lg">
+    <p className="text-red-200 text-lg mb-2">Bilmediler!</p>
+    <p className="text-red-100 text-4xl font-black font-mono tracking-wider">
+      {gameState.current_word}
+    </p>
+  </div>
+)}
           <div className="space-y-2">
             {[...Array(6)].map((_, rowIndex) => (
               <div key={rowIndex} className="flex justify-center gap-2">

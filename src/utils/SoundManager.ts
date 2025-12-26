@@ -72,20 +72,23 @@ class SoundManager {
 
 
   // Täze: Her sekunt tick çal
-  startTicking() {
-    this.unlockAudio();
-    this.stopTicking(); // Öňki interval bar bolsa togtat
+startTicking() {
+  this.unlockAudio();
+  this.stopTicking(); // Önceki interval'ı temizle
 
-    // Ilki tick hemen çal
+  // HEMEN tick çal
+  this.tickSound?.stop();
+  this.tickSound?.play();
+
+  // Her saniye tick çal
+  this.tickInterval = setInterval(() => {
     this.tickSound?.stop();
     this.tickSound?.play();
+  }, 1000);
 
-    // Soňra her sekunt gaýtala
-    this.tickInterval = setInterval(() => {
-      this.tickSound?.stop();
-      this.tickSound?.play();
-    }, 1000);
-  }
+  // TENSION'I DURDUR
+  this.stopTension();
+}
 
   // Täze: Tick gaýtalamagy togtat
   stopTicking() {
