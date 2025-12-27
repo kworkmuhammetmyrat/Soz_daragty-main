@@ -2,11 +2,12 @@ import { useEffect, useState, useCallback } from 'react';
 import { query, single } from '../lib/localDb';
 import { initWebSocket } from '../utils/WebSocketClient';
 
-export const useGameState = (sessionId: string | null) => {
+export const useGameState = (sessionId?: string) => {
   const [gameState, setGameState] = useState<any>(null);
   const [gameSession, setGameSession] = useState<any>(null);
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tick, setTick] = useState(0);
 
   const load = useCallback(async () => {
     if (!sessionId) {
@@ -15,11 +16,13 @@ export const useGameState = (sessionId: string | null) => {
     }
 
     try {
-      const session = await single('SELECT * FROM game_sessions WHERE id = ?', [sessionId]);
-      if (!session) {
-        setLoading(false);
-        return;
-      }
+      const session = await single(
+        'SELECT * FROM game_sessions WHERE id = ?',
+        [sessionId]
+      );
+
+      if (!session) return;
+
       setGameSession(session);
 
       const groupList = await query(
@@ -37,38 +40,31 @@ export const useGameState = (sessionId: string | null) => {
         if (state) {
           setGameState({
             ...state,
-            guesses: state.guesses ? JSON.parse(state.guesses) : [],
-            round_config: state.round_config ? JSON.parse(state.round_config) : { starting_points: 120, penalty: 20 },
-            timer_active: state.timer_active === 1,
-            timer_started_at: state.timer_started_at
+            guesses: JSON.parse(state.guesses || '[]'),
           });
-        } else {
-          setGameState(null);
         }
-      } else {
-        setGameState(null);
       }
-
-      setLoading(false);
-    } catch (err) {
-      console.error('Load error:', err);
+    } finally {
       setLoading(false);
     }
   }, [sessionId]);
 
   useEffect(() => {
-    load();
-
     if (!sessionId) return;
 
-    const cleanup = initWebSocket((data) => {
-      if (data.change === 'db_updated') {
-        load();
-      }
+    initWebSocket(() => {
+      setTick((t) => t + 1);
     });
+  }, [sessionId]);
 
-    return cleanup;
-  }, [sessionId, load]);
+  useEffect(() => {
+    load();
+  }, [tick, load]);
 
-  return { gameState, gameSession, groups, loading };
+  return {
+    gameState,
+    gameSession,
+    groups,
+    loading,
+  };
 };

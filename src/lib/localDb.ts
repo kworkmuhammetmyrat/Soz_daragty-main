@@ -1,7 +1,6 @@
 import initSqlJs from 'sql.js';
 import localforage from 'localforage';
 import { sendUpdate } from '../utils/WebSocketClient';
-
 let db: any = null;
 let dbVersion = 0;
 
@@ -22,8 +21,7 @@ const incrementVersion = () => {
   dbVersion++;
   localStorage.setItem('dbVersion', dbVersion.toString());
   if (broadcast) broadcast.postMessage('db-updated');
-  sendUpdate({ change: 'db_updated', timestamp: Date.now() });
-};
+  sendUpdate();};
 
 export const getDbVersion = () => dbVersion;
 
@@ -15308,6 +15306,7 @@ const saveDb = async () => {
     const data = db.export();
     await localforage.setItem('lingoDb', data);
     incrementVersion();
+    sendUpdate(); // ← Sadece bunu çağır
   }
 };
 

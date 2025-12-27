@@ -1,7 +1,6 @@
-  import initSqlJs from 'sql.js';
+ import initSqlJs from 'sql.js';
 import localforage from 'localforage';
 import { sendUpdate } from '../utils/WebSocketClient';
-
 let db: any = null;
 let dbVersion = 0;
 
@@ -22,8 +21,7 @@ const incrementVersion = () => {
   dbVersion++;
   localStorage.setItem('dbVersion', dbVersion.toString());
   if (broadcast) broadcast.postMessage('db-updated');
-  sendUpdate({ change: 'db_updated', timestamp: Date.now() });
-};
+  sendUpdate();};
 
 export const getDbVersion = () => dbVersion;
 
@@ -89,29 +87,7 @@ const getDb = async () => {
       ["ABAT", 4, "A", "tm"],
 ["BABA", 4, "B", "tm"],
 ["ÇAGA", 4, "Ç", "tm"],
-["DAGY", 4, "D", "tm"],
-["EBLA", 4, "E", "tm"],
-["ÄDIK", 4, "Ä", "tm"],
-["FAKT", 4, "F", "tm"],
-["GABA", 4, "G", "tm"],
-      //English
-      ["ALCA", 4, "A", "en"],
-["ALCO", 4, "A", "en"],
-["ALEA", 4, "A", "en"],
-["ALEC", 4, "A", "en"],
-["ALEE", 4, "A", "en"],
-["ALEF", 4, "A", "en"],
-["ALEM", 4, "A", "en"],
-["ALEN", 4, "A", "en"],
-["ALES", 4, "A", "en"],
-["ALEX", 4, "A", "en"],
-["ALFA", 4, "A", "en"],
-["ALGA", 4, "A", "en"],
-["ALGY", 4, "A", "en"],
-      //Rusca
-  ["КИСТЬ", 5, "К", "ru"],
-  ["КОВЁР", 5, "К", "ru"],
-  ["ПОЛКА", 5, "П", "ru"],
+ ["ПОЛКА", 5, "П", "ru"],
   ["ВАЗА", 4, "В", "ru"],
   ["ЧАШКА", 5, "Ч", "ru"],
   ["ЛОЖКА", 5, "Л", "ru"],
@@ -144,6 +120,7 @@ const saveDb = async () => {
     const data = db.export();
     await localforage.setItem('lingoDb', data);
     incrementVersion();
+    sendUpdate(); // ← Sadece bunu çağır
   }
 };
 

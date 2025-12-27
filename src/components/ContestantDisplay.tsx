@@ -2,9 +2,8 @@ import { useGameState } from '../hooks/useGameState';
 import { useCountdown } from '../hooks/useCountdown';
 import { Trophy, Clock, PauseCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { update } from '../lib/localDb';
 import { useEffect, useState } from 'react';
-
+import { soundManager } from '../utils/SoundManager';
 
 interface ContestantDisplayProps {
   sessionId: string;
@@ -16,49 +15,11 @@ export const ContestantDisplay = ({ sessionId }: ContestantDisplayProps) => {
   const [showFailedOverlay, setShowFailedOverlay] = useState(false);
   const [failedWord, setFailedWord] = useState<string | null>(null);
 
-  const handleTimeout = async () => {
-    if (!gameState || !gameSession?.current_group_id) return;
-
-    const newAttempts = (gameState.attempts_used || 0) + 1;
-
-    const currentLength = gameState?.current_word?.length || 4;
-    const timeoutGuess = {
-      word: ''.padEnd(currentLength, ' '),
-      results: Array(currentLength).fill({ letter: '', status: 'timeout' })
-    };
-
-    const newGuesses = [...(gameState.guesses || []), timeoutGuess];
-
-    await update(
-      'game_state',
-      {
-        timer_active: 0,
-        timer_started_at: null,
-        attempts_used: newAttempts,
-        guesses: JSON.stringify(newGuesses),
-      },
-      'session_id = ? AND group_id = ?',
-      [sessionId, gameSession.current_group_id]
-    );
-
-    if (newAttempts >= 6) {
-      await update(
-        'game_state',
-        {
-          current_word: null,
-          current_word_id: null,
-          guesses: '[]',
-        },
-        'session_id = ? AND group_id = ?',
-        [sessionId, gameSession.current_group_id]
-      );
-    }
-  };
-
+  // Contestant sadece gösterir, timeout veya DB yazma yapmaz
   const timeRemaining = useCountdown(
     gameState?.timer_active || false,
     gameState?.timer_started_at || null,
-    handleTimeout
+    () => {} // Boş fonksiyon
   );
 
   const round = gameSession?.current_round || 1;
@@ -107,6 +68,24 @@ export const ContestantDisplay = ({ sessionId }: ContestantDisplayProps) => {
     }
   }, [wordFailed, gameState?.current_word]);
 
+  // Ses yönetimi - Admin'dekiyle tamamen aynı
+  useEffect(() => {
+    if (gameSession) {
+      soundManager.startTension(1.0);
+      soundManager.setTensionVolume(gameState?.timer_active ? 1.0 : 0.5);
+    }
+
+    if (gameState?.timer_active) {
+      soundManager.startTicking();
+    } else {
+      soundManager.stopTicking();
+    }
+
+    return () => {
+      soundManager.stopAll();
+    };
+  }, [gameState?.timer_active, gameSession]);
+
   const firstLetter = gameState?.current_word
     ? gameState.current_word[0].toUpperCase()
     : '';
@@ -114,8 +93,6 @@ export const ContestantDisplay = ({ sessionId }: ContestantDisplayProps) => {
   const boxSizes: Record<number, string> = {
     4: 'w-16 h-16 text-3xl md:w-20 md:h-20 md:text-4xl',
     5: 'w-14 h-14 text-2xl md:w-16 md:h-16 md:text-3xl',
-    6: 'w-12 h-12 text-xl md:w-14 md:h-14 md:text-2xl',
-    7: 'w-10 h-10 text-lg md:w-12 md:h-12 md:text-xl',
   };
   const boxSize = boxSizes[currentLength] || boxSizes[4];
 
@@ -141,26 +118,28 @@ export const ContestantDisplay = ({ sessionId }: ContestantDisplayProps) => {
   return (
     <div className="min-h-dvh bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex flex-col p-4 md:p-6">
 
+      {/* TIMER - Pause'da ikon + kalan saniye donuk */}
       {gameState?.timer_started_at && (
-  <div className="fixed top-4 left-1/2 -translate-x-1/2 md:top-8 md:left-auto md:right-8 md:translate-x-0 z-40">
-    <div className="flex items-center gap-4 px-8 py-4 rounded-3xl bg-blue-600 border-4 border-blue-400 shadow-2xl">
-      <Clock className="w-10 h-10 text-white" />
-      <span className="text-5xl md:text-6xl font-black text-white flex items-center gap-3">
-        {gameState?.timer_active ? (
-          timeRemaining
-        ) : (
-          <>
-            <PauseCircle className="w-12 h-12 text-yellow-400" />
-            {timeRemaining}
-          </>
-        )}
-      </span>
-    </div>
-  </div>
-)}
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 md:top-8 md:left-auto md:right-8 md:translate-x-0 z-40">
+          <div className="flex items-center gap-4 px-8 py-4 rounded-3xl bg-blue-600 border-4 border-blue-400 shadow-2xl">
+            <Clock className="w-10 h-10 text-white" />
+            <span className="text-5xl md:text-6xl font-black text-white flex items-center gap-3">
+              {gameState?.timer_active ? (
+                timeRemaining
+              ) : (
+                <>
+                  <PauseCircle className="w-12 h-12 text-yellow-400" />
+                  {timeRemaining}
+                </>
+              )}
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 items-start mt-20 md:mt-0">
 
+        {/* Skor Tablosu */}
         <div className="bg-slate-800/60 backdrop-blur-xl rounded-3xl border-4 border-slate-700/50 p-6 md:p-8 shadow-2xl">
           <div className="flex items-center gap-4 mb-6">
             <Trophy className="w-10 h-10 text-amber-400" />
@@ -190,16 +169,18 @@ export const ContestantDisplay = ({ sessionId }: ContestantDisplayProps) => {
             ))}
           </div>
 
+          {/* Başarısız kelime kalıcı gösterim */}
           {failedWord && !showFailedOverlay && (
-    <div className="mt-8 p-6 bg-red-900/70 backdrop-blur rounded-2xl border-4 border-red-500 text-center shadow-2xl animate-pulse">
-      <p className="text-red-200 text-lg mb-2 font-semibold">Bilmediler!</p>
-      <p className="text-red-100 text-4xl md:text-5xl font-black font-mono tracking-widest">
-        {failedWord}
-      </p>
-    </div>
-  )}
+            <div className="mt-8 p-6 bg-red-900/70 backdrop-blur rounded-2xl border-4 border-red-500 text-center shadow-2xl animate-pulse">
+              <p className="text-red-200 text-lg mb-2 font-semibold">Bilmediler!</p>
+              <p className="text-red-100 text-4xl md:text-5xl font-black font-mono tracking-widest">
+                {failedWord}
+              </p>
+            </div>
+          )}
         </div>
 
+        {/* Oyun Alanı */}
         <div className="flex flex-col items-center gap-8 lg:gap-12">
           <h1 className="text-4xl md:text-5xl font-black text-white text-center">
             SÖZ DARAGTY
@@ -211,57 +192,56 @@ export const ContestantDisplay = ({ sessionId }: ContestantDisplayProps) => {
             className="bg-slate-800/60 backdrop-blur-xl rounded-3xl border-4 border-slate-700/50 p-8 shadow-2xl w-full max-w-2xl relative"
           >
             <div className="space-y-4">
-  {[...Array(6)].map((_, rowIndex) => (
-    <motion.div
-      key={rowIndex}
-      initial={false}
-      animate={{ opacity: 1, x: 0 }}
-      className="flex justify-center gap-3"
-    >
-      {[...Array(currentLength)].map((_, colIndex) => {
-        const guess = guesses[rowIndex];
-        const result = guess?.results[colIndex];
+              {[...Array(6)].map((_, rowIndex) => (
+                <motion.div
+                  key={rowIndex}
+                  className="flex justify-center gap-3"
+                >
+                  {[...Array(currentLength)].map((_, colIndex) => {
+                    const guess = guesses[rowIndex];
+                    const result = guess?.results[colIndex];
 
-        const isCurrentRow = rowIndex === (gameState?.attempts_used || 0);
-        if (colIndex === 0 && firstLetter && !guess && isCurrentRow) {
-          return (
-            <div
-              key={colIndex}
-              className={`${boxSize} flex items-center justify-center rounded-2xl font-black bg-green-600 border-4 border-green-400 text-white shadow-lg`}
-            >
-              {firstLetter}
+                    const isCurrentRow = rowIndex === (gameState?.attempts_used || 0);
+                    if (colIndex === 0 && firstLetter && !guess && isCurrentRow) {
+                      return (
+                        <div
+                          key={colIndex}
+                          className={`${boxSize} flex items-center justify-center rounded-2xl font-black bg-green-600 border-4 border-green-400 text-white shadow-lg`}
+                        >
+                          {firstLetter}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={colIndex}
+                        className={`${boxSize} flex items-center justify-center rounded-2xl font-black border-4 transition-all ${
+                          !guess
+                            ? 'bg-slate-700 border-slate-600'
+                            : result.status === 'correct'
+                            ? 'bg-green-600 border-green-400 text-white shadow-lg'
+                            : result.status === 'present'
+                            ? 'bg-amber-600 border-amber-400 text-white shadow-lg'
+                            : result.status === 'timeout'
+                            ? 'bg-red-600 border-red-400 text-white'
+                            : 'bg-slate-600 border-slate-500 text-white'
+                        }`}
+                      >
+                        {result?.letter?.toUpperCase() || ''}
+                      </div>
+                    );
+                  })}
+                </motion.div>
+              ))}
             </div>
-          );
-        }
-
-        return (
-          <div
-            key={colIndex}
-            className={`${boxSize} flex items-center justify-center rounded-2xl font-black border-4 transition-all ${
-              !guess
-                ? 'bg-slate-700 border-slate-600'
-                : result.status === 'correct'
-                ? 'bg-green-600 border-green-400 text-white shadow-lg'
-                : result.status === 'present'
-                ? 'bg-amber-600 border-amber-400 text-white shadow-lg'
-                : result.status === 'timeout'
-                ? 'bg-red-600 border-red-400 text-white'
-                : 'bg-slate-600 border-slate-500 text-white'
-            }`}
-          >
-            {result?.letter?.toUpperCase() || ''}
-          </div>
-        );
-      })}
-    </motion.div>
-  ))}
-</div>
           </motion.div>
         </div>
 
         <div className="hidden lg:block" />
       </div>
 
+      {/* Başarı Overlay */}
       <AnimatePresence>
         {showSuccessOverlay && gameState?.current_word && (
           <motion.div
@@ -308,6 +288,7 @@ export const ContestantDisplay = ({ sessionId }: ContestantDisplayProps) => {
         )}
       </AnimatePresence>
 
+      {/* Başarısızlık Overlay */}
       <AnimatePresence>
         {showFailedOverlay && failedWord && (
           <motion.div

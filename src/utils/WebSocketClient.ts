@@ -1,68 +1,34 @@
-let ws: WebSocket | null = null;
-let messageCallback: ((data: any) => void) | null = null;
-let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 10;
-const RECONNECT_DELAY = 2000;
+let socket: WebSocket | null = null;
+let listener: (() => void) | null = null;
 
-const connect = () => {
-  if (ws && ws.readyState === WebSocket.OPEN) return;
+export const initWebSocket = (onUpdate: () => void) => {
+  listener = onUpdate;
+  if (socket) return;
 
-  try {
-    ws = new WebSocket('ws://localhost:8083');
+  socket = new WebSocket('ws://localhost:8081');
 
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-      reconnectAttempts = 0;
-    };
+  socket.onopen = () => {
+    console.log('🟢 WS connected');
+  };
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (messageCallback) {
-          messageCallback(data);
-        }
-      } catch (e) {
-        console.error('Failed to parse WS message:', e);
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket closed, attempting reconnect...');
-      ws = null;
-
-      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-        reconnectAttempts++;
-        setTimeout(connect, RECONNECT_DELAY);
-      } else {
-        console.warn('Max reconnect attempts reached. Please restart backend.');
-      }
-    };
-  } catch (e) {
-    console.error('Failed to create WebSocket:', e);
-  }
-};
-
-export const initWebSocket = (onMessage: (data: any) => void) => {
-  messageCallback = onMessage;
-  connect();
-
-  return () => {
-    messageCallback = null;
-    if (ws) {
-      ws.close();
-      ws = null;
+  socket.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data.type === 'UPDATE') {
+      console.log('🔁 WS update received');
+      listener?.();
     }
+  };
+
+  socket.onclose = () => {
+    console.log('🔴 WS closed, reconnecting...');
+    socket = null;
+    setTimeout(() => initWebSocket(onUpdate), 2000);
   };
 };
 
-export const sendUpdate = (data: any) => {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'update', ...data }));
-  } else {
-    console.warn('WebSocket not open, message not sent');
+export const sendUpdate = () => {
+  if (socket?.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: 'UPDATE' }));
+    console.log('📤 WS update sent');
   }
 };

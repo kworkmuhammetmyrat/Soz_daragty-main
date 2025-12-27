@@ -4,6 +4,7 @@ import { PlayCircle, RotateCcw, Trophy, Zap, RefreshCw, PauseCircle, Play } from
 import { soundManager } from '../utils/SoundManager';
 import { single, update, getWordsByLength, addWord } from '../lib/localDb';
 import { useCountdown } from '../hooks/useCountdown';
+import { sendUpdate } from '../utils/WebSocketClient';
 
 interface WordItem {
   id: string;
@@ -154,6 +155,7 @@ useEffect(() => {
     'session_id = ? AND group_id = ?',
     [sessionId, currentGroupId]
   );
+  sendUpdate();
 };
 
   const startTimer = async () => {
@@ -164,6 +166,7 @@ useEffect(() => {
       'session_id = ? AND group_id = ?',
       [sessionId, currentGroupId]
     );
+    sendUpdate();
   };
 
   const pauseTimer = async () => {
@@ -174,6 +177,7 @@ useEffect(() => {
       'session_id = ? AND group_id = ?',
       [sessionId, currentGroupId]
     );
+    sendUpdate();
   };
 
   const resumeTimer = async () => {
@@ -197,6 +201,7 @@ useEffect(() => {
       'session_id = ? AND group_id = ?',
       [sessionId, currentGroupId]
     );
+    sendUpdate();
   };
 
   const submitGuess = async () => {
@@ -281,6 +286,7 @@ useEffect(() => {
       }
     }
     setGuess('');
+    sendUpdate();
   };
 
   const resetRound = async () => {
@@ -305,6 +311,7 @@ useEffect(() => {
       soundManager.startTension(1.0);
       soundManager.setTensionVolume(0.5);
     }
+    sendUpdate();
   };
 
   const changeGroup = async (groupId: string) => {
